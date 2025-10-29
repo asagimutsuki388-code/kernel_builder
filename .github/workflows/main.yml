@@ -36,6 +36,7 @@ on: # [push]
         - 'WeebX-Clang-15gr'
         - 'WeebX-Clang'
         - 'ZyC-Clang'
+        - 'ZyC-Clang-21'
       KREPO:
         description: 'kernel repo'
         required: true
