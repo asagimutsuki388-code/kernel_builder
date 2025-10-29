@@ -14,9 +14,28 @@ on: # [push]
   workflow_dispatch:
     inputs:
       COMPILER:
-        description: 'compilers used'
+        description: 'Select compiler to use:'
         required: true
         default: 'Geopelia-Clang-20'
+        type: choice
+        options:
+        - 'AOSP-Clang-11'
+        - 'AOSP-Clang-12'
+        - 'AOSP-Clang-14'
+        - 'binutils_Neutron-Clang'
+        - 'binutils_Proton-Clang'
+        - 'Eva-GCC-12'
+        - 'Eva-GCC'
+        - 'Geopelia-Clang-20'
+        - 'Geopelia-Clang'
+        - 'Lilium-Clang'
+        - 'Neutron-Clang-17'
+        - 'Neutron-Clang'
+        - 'Proton-Clang'
+        - 'shattered-Clang-15'
+        - 'WeebX-Clang-15gr'
+        - 'WeebX-Clang'
+        - 'ZyC-Clang'
       KREPO:
         description: 'kernel repo'
         required: true
@@ -30,9 +49,10 @@ on: # [push]
         required: false
         default: ''
       VERBOSE:
-        description: 'whether verbose logging should be enabled'
+        description: 'Verbose logging enabled:'
         required: false
-        default: ''
+        default: false
+        type: boolean
       ZREPO:
         description: 'zipper repo'
         required: false
@@ -42,9 +62,14 @@ on: # [push]
         required: false
         default: ''
       KSU:
-        description: 'if dont want ksu then leave blank'
+        description: 'Select KernelSU patching option:'
         required: false
-        default: 'sus'
+        default: 'none'
+        type: choice
+        options:
+        - 'none'
+        - 'ksu'
+        - 'ksu+sus'
       TG_RECIPENT:
         description: 'idk'
         required: false
@@ -96,7 +121,7 @@ jobs:
             git config --global user.email "idk@example.com"
         - name: show host info
           run: |
-            if [ ! -z "$VERBOSE" ]; then
+            if [ "$VERBOSE" = "true" ]; then
               bash tg_utils.sh msg "gh $RUN_NUM: build env initialized%nlgh $RUN_NUM: host: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2)%nlgh $RUN_NUM: free disk space: $(df --sync -BM --output=avail / | grep -v Avail)"
             fi
         - name: print notes if exists
@@ -106,7 +131,7 @@ jobs:
             fi
         - name: clone kernel source
           run: |
-            if [ ! -z "$VERBOSE" ]; then
+            if [ "$VERBOSE" = "true" ]; then
               bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
             fi
             git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
@@ -119,27 +144,33 @@ jobs:
           run: |
             cd kernel
             case $PATCH_KSU in
-              "both" )
+              "ksu" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled"
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching"
                 bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "sus" )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled, patching"
+              "ksu+sus" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching"
+                bash ../ksu/applyPatches.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: SuSFS patching"
                 bash ../ksu/asus.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
-              "" )
+              "none" )
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
               * )
-                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled, patching"
-                bash ../ksu/applyPatches.sh
                 bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
                 bash ../build.sh "$COMPILERS"
               ;;
