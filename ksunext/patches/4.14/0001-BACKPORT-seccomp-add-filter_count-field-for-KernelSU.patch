@@ -1,0 +1,46 @@
+From 3350b3733ac34ffe17deedb63d283d1c29e06bb2 Mon Sep 17 00:00:00 2001
+From: Deniz <100004271+uwuv3@users.noreply.github.com>
+Date: Sun, 26 Oct 2025 19:44:36 +0000
+Subject: [PATCH 1/5] =?UTF-8?q?BACKPORT:=20seccomp:=20add=20filter=5Fcount?=
+ =?UTF-8?q?=20field=20for=20KernelSU=20=E2=80=A2=20KernelSU=20requires=20s?=
+ =?UTF-8?q?truct=20seccomp=20to=20have=20atomic=5Ft=20filter=5Fcount=20,?=
+ =?UTF-8?q?=20but=20this=20field=20is=20missing=20on=20NON-GKI=20kernels.?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Adding the field fixes build errors such as:
+
+ error: no member named 'filter_count' in 'struct seccomp'
+ Reference: https://github.com/tiann/KernelSU/pull/2708
+
+Actual Commit: https://github.com/GrapheneOS-Archive/kernel_common-5.10/commit/c818c03
+
+Signed-off-by: Kees Cook <keescook@chromium.org>
+---
+ include/linux/seccomp.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/linux/seccomp.h b/include/linux/seccomp.h
+index a9d5c52de4ea..4adb3b100d70 100644
+--- a/include/linux/seccomp.h
++++ b/include/linux/seccomp.h
+@@ -11,6 +11,7 @@
+ #ifdef CONFIG_SECCOMP
+ 
+ #include <linux/thread_info.h>
++#include <linux/atomic.h>
+ #include <asm/seccomp.h>
+ 
+ struct seccomp_filter;
+@@ -27,6 +28,7 @@ struct seccomp_filter;
+  */
+ struct seccomp {
+ 	int mode;
++	atomic_t filter_count;
+ 	struct seccomp_filter *filter;
+ };
+ 
+-- 
+2.50.1
+
