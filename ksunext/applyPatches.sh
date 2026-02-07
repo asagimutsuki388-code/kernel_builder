@@ -5,7 +5,7 @@ export maindir="$(pwd)"
 export outside="${maindir}/.."
 source "${outside}/$1env"
 
-curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
 git add . && git commit -am "drivers: KernelSU-Next"
 KSU_GIT_VERSION=$(cd KernelSU-Next && git rev-list --count HEAD)
 KSU_VERSION=$(( 10000 + KSU_GIT_VERSION + 200 ))
