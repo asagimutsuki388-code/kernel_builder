@@ -222,6 +222,18 @@ jobs:
               ;;
             esac
 
+        - name: upload artifact to GitHub Actions
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: kernel-${{ github.run_number }}_${{ github.run_attempt }}
+            path: |
+              kernel/*.zip
+              kernel/*.log
+              kernel/*.info
+            if-no-files-found: warn
+            retention-days: 14
+
         - name: upload
           run: |
             cd kernel
