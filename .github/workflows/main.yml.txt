@@ -1,0 +1,221 @@
+name: Building kernel
+
+on: # [push]
+#  release:
+#    types: [published]
+#  push:
+#    branches:
+#      - master
+#    paths:
+#      - '.config'
+#  schedule:
+#    - cron: 0 8 * * 5
+# Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      COMPILER:
+        description: 'Select compiler to use:'
+        required: true
+        default: 'Geopelia-Clang-20'
+        type: choice
+        options:
+        - 'AOSP-Clang-11'
+        - 'AOSP-Clang-12'
+        - 'AOSP-Clang-14'
+        - 'binutils_Neutron-Clang'
+        - 'binutils_Proton-Clang'
+        - 'Eva-GCC-12'
+        - 'Eva-GCC'
+        - 'Geopelia-Clang-20'
+        - 'Geopelia-Clang'
+        - 'Lilium-Clang'
+        - 'Neutron-Clang-17'
+        - 'Neutron-Clang'
+        - 'Proton-Clang'
+        - 'shattered-Clang-15'
+        - 'WeebX-Clang-15gr'
+        - 'WeebX-Clang'
+        - 'ZyC-Clang'
+        - 'ZyC-Clang-21'
+      KREPO:
+        description: 'kernel repo'
+        required: true
+        default: 'https://github.com/25ji-Telegram-de/android_kernel_xiaomi_selene'
+      KBRANCH:
+        description: 'kernel branch'
+        required: true
+        default: 'yuki-saisei'
+      NOTES:
+        description: 'notes to print out'
+        required: false
+        default: ''
+      VERBOSE:
+        description: 'Verbose logging enabled:'
+        required: false
+        default: false
+        type: boolean
+      ZREPO:
+        description: 'zipper repo'
+        required: false
+        default: ''
+      ZBRANCH:
+        description: 'zipper branch'
+        required: false
+        default: ''
+      KSU:
+        description: 'Select KernelSU patching option:'
+        required: false
+        default: 'none'
+        type: choice
+        options:
+        - 'none'
+        - 'ksu'
+        - 'ksu+sus'
+        - 'ksunext'
+      TG_RECIPENT:
+        description: 'idk'
+        required: false
+        default: ''
+      CONTAINER:
+        description: 'if you know you know'
+        required: true
+        default: 'fedora:40'
+
+env:
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+  CHAT_ID: ${{ secrets.CHAT_ID }}
+  REPO: ${{ github.event.inputs.KREPO }}
+  RUN_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
+  KERNEL_BRANCH: ${{ github.event.inputs.KBRANCH }}
+  NOTE: ${{ github.event.inputs.NOTES }}
+  COMPILERS: ${{ github.event.inputs.COMPILER }}
+  PATCH_KSU: ${{ github.event.inputs.KSU }}
+  VERBOSE: ${{ github.event.inputs.VERBOSE }}
+  zipper_repo: ${{ github.event.inputs.ZREPO }}
+  zipper_branch: ${{ github.event.inputs.ZBRANCH }}
+  TZ: Asia/Ho_Chi_Minh
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ github.event.inputs.CONTAINER }}
+
+    steps:
+        - name: checkout
+          uses: actions/checkout@master
+        - name: why
+          run: |
+            echo WORKFLOW_START=$(date +"%s") >> $GITHUB_ENV
+            ALT_RECIPENT=${{ github.event.inputs.TG_RECIPENT }}
+            if [ ! -z $ALT_RECIPENT ]; then
+              echo CHAT_ID="$ALT_RECIPENT" >> $GITHUB_ENV
+            fi
+        - name: start of workflow
+          run: |
+            bash tg_utils.sh msg "gh $RUN_NUM: workflow started"
+        - name: init build env
+          run: |
+            dnf group install development-tools -y
+            dnf install llvm lld bc bison ca-certificates curl flex glibc-devel.i686 glibc-devel binutils-devel openssl python3 python2 zstd clang gcc-arm-linux-gnu dtc libxml2 libarchive openssl-devel perl tomsfastmath-devel wget xz -y
+            ln -sf "/usr/bin/python3" /usr/bin/python
+            # Fedora's cross toolchain package only ships the arm-linux-gnu- prefix,
+            # but the kernel Makefiles (CROSS_COMPILE_ARM32 for vdso32) expect
+            # arm-linux-gnueabi-. Symlink every arm-linux-gnu-* tool so both
+            # prefixes resolve to the same binaries.
+            for bin in /usr/bin/arm-linux-gnu-*; do
+              tool="${bin##*/arm-linux-gnu-}"
+              ln -sf "${bin}" "/usr/bin/arm-linux-gnueabi-${tool}"
+            done
+            git config --global user.name "John Doe"
+            git config --global user.email "idk@example.com"
+        - name: show host info
+          run: |
+            if [ "$VERBOSE" = "true" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: build env initialized%nlgh $RUN_NUM: host: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2)%nlgh $RUN_NUM: free disk space: $(df --sync -BM --output=avail / | grep -v Avail)"
+            fi
+        - name: print notes if exists
+          run: |
+            if [ ! -z "$NOTE" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: $NOTE"
+            fi
+        - name: clone kernel source
+          run: |
+            if [ "$VERBOSE" = "true" ]; then
+              bash tg_utils.sh msg "gh $RUN_NUM: cloning kernel source%nlgh $RUN_NUM: repo: $REPO%nlgh $RUN_NUM: branch: $KERNEL_BRANCH"
+            fi
+            git clone --depth=1 --single-branch $REPO -b $KERNEL_BRANCH kernel
+        - name: print kernel info
+          run: |
+            cd kernel
+            source ../env
+            bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
+        - name: run compilation scripts
+          run: |
+            cd kernel
+            case $PATCH_KSU in
+              "ksu" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching enabled"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching"
+                bash ../ksu/applyPatches.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              "ksunext" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU-Next patching"
+                bash ../ksunext/applyPatches.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              "ksu+sus" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU and SuSFS patching enabled"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: KernelSU patching"
+                bash ../ksu/applyPatches.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+                bash ../tg_utils.sh msg "gh $RUN_NUM: SuSFS patching"
+                bash ../ksu/asus.sh
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              "none" )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+              * )
+                bash ../tg_utils.sh msg "gh $RUN_NUM: running compilation script(s): $COMPILERS"
+                bash ../build.sh "$COMPILERS"
+              ;;
+            esac
+
+        - name: upload
+          run: |
+            cd kernel
+            if [[ $(ls *.zip) ]]; then
+              for file in *.zip ; do
+                bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
+              done
+            fi
+            if [[ $(ls *.log) ]]; then
+              for file in *.log ; do
+                if [ -e "${file}.info" ]; then
+                  bash ../tg_utils.sh up "${file}" "$(cat "${file}.info")"
+                fi
+              done
+            fi
+        - name: if it fails
+          if: ${{ failure() }}
+          run: |
+            WORKFLOW_END=$(date +"%s")
+            WDIFF=$((WORKFLOW_END - WORKFLOW_START))
+            bash tg_utils.sh msg "gh $RUN_NUM: workflow failed in $((WDIFF / 60))m, $((WDIFF % 60))s"
+        - name: end of workflow
+          run: |
+            WORKFLOW_END=$(date +"%s")
+            WDIFF=$((WORKFLOW_END - WORKFLOW_START))
+            bash tg_utils.sh msg "gh $RUN_NUM: workflow ended in $((WDIFF / 60))m, $((WDIFF % 60))s"
+
