@@ -150,6 +150,36 @@ jobs:
             cd kernel
             source ../env
             bash ../tg_utils.sh msg "gh $RUN_NUM: kernel name: ${kernel_name}%nlgh $RUN_NUM: kernel ver: ${kernel_ver}%nlgh $RUN_NUM: kernel head commit: ${kernel_head}%nlgh $RUN_NUM: defconfig: ${defconfig}"
+
+        - name: Fix MediaTek Type-C Compilation Error
+          run: |
+            cd kernel
+            echo "========================================"
+            echo "Menambal Makefile MTK Type-C agar mengabaikan error Clang..."
+            echo "========================================"
+            
+            TCPC_MAKE="drivers/misc/mediatek/typec/tcpc/Makefile"
+            TYPEC_MAKE="drivers/misc/mediatek/typec/Makefile"
+            
+            # Patch folder tcpc
+            if [ -f "$TCPC_MAKE" ]; then
+              sed -i 's/-Werror//g' "$TCPC_MAKE"
+              echo "ccflags-y += -Wno-error" >> "$TCPC_MAKE"
+              echo "ccflags-y += -Wno-incompatible-pointer-types" >> "$TCPC_MAKE"
+              echo "ccflags-y += -Wno-unused-variable" >> "$TCPC_MAKE"
+              echo "ccflags-y += -Wno-implicit-int" >> "$TCPC_MAKE"
+              echo "ccflags-y += -Wno-pointer-sign" >> "$TCPC_MAKE"
+              echo "✅ Patch tcpc Makefile sukses"
+            fi
+            
+            # Patch folder typec parent
+            if [ -f "$TYPEC_MAKE" ]; then
+              sed -i 's/-Werror//g' "$TYPEC_MAKE"
+              echo "ccflags-y += -Wno-error" >> "$TYPEC_MAKE"
+              echo "ccflags-y += -Wno-incompatible-pointer-types" >> "$TYPEC_MAKE"
+              echo "✅ Patch typec Makefile sukses"
+            fi
+            
         - name: run compilation scripts
           run: |
             cd kernel
